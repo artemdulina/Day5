@@ -10,9 +10,219 @@ using System.Threading.Tasks;
 
 namespace MathematicalEntities
 {
-    public class Polynomial
+    public sealed class Polynomial
     {
-        private struct PolynomialElement
+        public int Degree { get; }////////
+        private readonly PolynomialElement[] elements;////////
+        private static readonly double accuracy;
+
+        public Polynomial()////////////////////
+        {
+            elements = new PolynomialElement[1];
+            Degree = 0;
+        }
+
+        static Polynomial()
+        {
+            accuracy = 0.000001;
+        }
+
+        public Polynomial(double[] coefficients, int[] degrees)////////////////
+        {
+            if (coefficients.Length != degrees.Length)
+            {
+                throw new ArgumentException("Number of coefficients should be equal to the number of degrees");
+            }
+            PolynomialElement[] preInit = new PolynomialElement[degrees.Length];
+            AddToCollection(coefficients, degrees, preInit);
+            Array.Sort(preInit, new SortByDegree());
+            CheckForRepeatedDegrees(ref preInit);
+            elements = preInit;
+            Degree = elements[elements.Length - 1].degree;
+        }
+
+        public Polynomial Addition(Polynomial x)
+        {
+            if (x == null)
+            {
+                throw new ArgumentNullException("x");
+            }
+            Polynomial result = new Polynomial();
+            if (x.Count == 0 && 0 == Count)
+            {
+                return result;
+            }
+            int i = 0, j = 0, resultIndex = 0;
+            while (i < Count && j < x.Count)
+            {
+                if (elements[i].degree == x[j].degree)
+                {
+                    result[resultIndex] = new PolynomialElement(elements[i].coefficient + x[j].coefficient, elements[i].degree);
+                    i++;
+                    j++;
+                }
+                else if (elements[i].degree < x[j].degree)
+                {
+                    result[resultIndex] = elements[i];
+                    i++;
+                }
+                else
+                {
+                    result[resultIndex] = x[j];
+                    j++;
+                }
+                resultIndex++;
+            }
+
+            while (i < Count)
+            {
+                result[resultIndex] = elements[i];
+                i++;
+                resultIndex++;
+            }
+
+            while (j < x.Count)
+            {
+                result[resultIndex] = x[j];
+                j++;
+                resultIndex++;
+            }
+
+            return result;
+        }
+
+        public double CalculateValue(double x)////////////////////
+        {
+            double result = 0;
+            for (int i = 0; i < elements.Length; i++)
+            {
+                result += elements[i].coefficient * Math.Pow(x, elements[i].degree);
+            }
+            return result;
+        }
+
+        public override int GetHashCode()//////////////////
+        {
+            return ToString().GetHashCode();
+        }
+
+        private int Count => elements.Length;////////////////
+
+        public PolynomialElement this[int index]////////////////
+        {
+            get { return elements[index]; }
+            private set { elements[index] = value; }
+        }
+
+        private void AddToCollection(double[] coefficients, int[] degrees, PolynomialElement[] preInit)////////////////
+        {
+            for (int i = 0; i < degrees.Length; i++)
+            {
+                if (Math.Abs(coefficients[i]) > accuracy)
+                    preInit[i] = new PolynomialElement(coefficients[i], degrees[i]);
+            }
+        }
+
+        public override bool Equals(object obj)//////////////
+        {
+            if (obj == null || GetType() != obj.GetType())
+                return false;
+            Polynomial compare = (Polynomial)obj;
+            return this == compare;
+        }
+
+        public static Polynomial operator +(Polynomial lhs, Polynomial rhs)///////////////
+        {
+            if (lhs == null)
+            {
+                throw new ArgumentNullException("lhs");
+            }
+            if (rhs == null)
+            {
+                throw new ArgumentNullException("rhs");
+            }
+            return lhs.Addition(rhs);
+        }
+
+        public static bool operator !=(Polynomial lhs, Polynomial rhs)///////////////
+        {
+            return !(lhs == rhs);
+        }
+
+        public static bool operator ==(Polynomial lhs, Polynomial rhs)////////////
+        {
+            if (ReferenceEquals(lhs, rhs)) return true;
+            if (ReferenceEquals(lhs, null) || ReferenceEquals(rhs, null)) return false;
+            if (lhs.Count != rhs.Count)
+                return false;
+            for (int i = 0; i < lhs.Count; i++)
+            {
+                if (lhs[i].degree != rhs[i].degree || Math.Abs(lhs[i].coefficient - rhs[i].coefficient) < accuracy)
+                    return false;
+            }
+            return true;
+        }
+
+        public override string ToString()
+        {
+            StringBuilder sb = new StringBuilder();
+            if (elements.Length == 0)
+                return "Empty polynomial";
+            foreach (PolynomialElement item in elements)
+            {
+                sb.Append(item);
+            }
+            if (sb.Length > 0)
+            {
+                if (sb[0] == '+')
+                    sb.Remove(0, 1);
+            }
+            else
+            {
+                return "0";
+            }
+            return sb.ToString();
+        }
+
+        private void CheckForRepeatedDegrees(ref PolynomialElement[] preInit)///////////////
+        {
+            if (preInit.Length < 2)
+                return;
+            PolynomialElement[] updatedElements;
+            int resultIndex = 0;
+            for (int i = 0; i < preInit.Length; i++)
+            {
+                int j = i;
+                double coefficients = 0;
+                while (j < preInit.Length - 1 && preInit[i].degree == preInit[j + 1].degree)
+                {
+                    coefficients += preInit[j++].coefficient;
+                }
+                if (j - i >= 1)
+                {
+                    preInit[resultIndex] = new PolynomialElement(preInit[j].coefficient + coefficients, preInit[j].degree);
+                    if (j == preInit.Length - 1)
+                        break;
+                    i = i + j - 1;
+                }
+                else
+                {
+                    resultIndex++;
+                    if (i == preInit.Length - 1 && resultIndex <= preInit.Length - 1)
+                    {
+                        preInit[resultIndex] = new PolynomialElement(preInit[i].coefficient, preInit[i].degree);
+                    }
+                }
+            }
+            if (resultIndex < preInit.Length - 1)
+            {
+                updatedElements = new PolynomialElement[resultIndex + 1];
+                Array.Copy(preInit, updatedElements, resultIndex + 1);
+                preInit = updatedElements;
+            }
+        }
+
+        public struct PolynomialElement
         {
             public double coefficient;
             public int degree;
@@ -49,194 +259,6 @@ namespace MathematicalEntities
                     sb.Append($"{coeff}x^({degree})");
                 }
                 return sb.ToString();
-            }
-        }
-        public int Degree { get; }
-
-        private List<PolynomialElement> elements;
-
-        public Polynomial()
-        {
-            elements = new List<PolynomialElement>();
-            elements.Add(new PolynomialElement());
-            Degree = 0;
-        }
-
-        public Polynomial(double[] coefficients, int[] degrees)
-        {
-            if (coefficients.Length != degrees.Length)
-            {
-                throw new ArgumentException("Number of coefficients should be equal to the number of degrees");
-            }
-            elements = new List<PolynomialElement>();
-            AddToCollection(coefficients, degrees);
-            elements.Sort(new SortByDegree());
-            CheckForRepeatedDegrees();
-            Degree = elements[elements.Count - 1].degree;
-        }
-
-        public Polynomial Addition(Polynomial x)
-        {
-            Polynomial result = new Polynomial();
-            if (x.GetPolynomialElementsCount() == 0 && 0 == GetPolynomialElementsCount())
-            {
-                return result;
-            }
-            int i = 0, j = 0;
-            while (i < GetPolynomialElementsCount() && j < x.GetPolynomialElementsCount())
-            {
-                if (elements[i].degree == x[j].degree)
-                {
-                    PolynomialElement add;
-                    add.degree = elements[i].degree;
-                    add.coefficient = elements[i].coefficient + x[j].coefficient;
-                    result.AddPolynomialElement(add);
-                    i++;
-                    j++;
-                }
-                else if (elements[i].degree < x[j].degree)
-                {
-                    result.AddPolynomialElement(elements[i]);
-                    i++;
-                }
-                else
-                {
-                    result.AddPolynomialElement(x[j]);
-                    j++;
-                }
-            }
-
-            while (i < GetPolynomialElementsCount())
-            {
-                result.AddPolynomialElement(elements[i]);
-                i++;
-            }
-
-            while (j < x.GetPolynomialElementsCount())
-            {
-                result.AddPolynomialElement(x[j]);
-                j++;
-            }
-
-            return result;
-        }
-
-        public double CalculateValue(double x)
-        {
-            double result = 0;
-            /*if (elements[0].degree == 0)
-            {
-                result += elements[0].coefficient;
-            }
-            else
-            {
-                result += elements[0].coefficient * Math.Pow(x, elements[0].degree);
-            }*/
-            // if (elements.Count > 1)
-            // {
-            for (int i = 0; i < elements.Count; i++)
-            {
-                result += elements[i].coefficient * Math.Pow(x, elements[i].degree);
-            }
-            // }
-            return result;
-        }
-
-        public static Polynomial operator +(Polynomial x, Polynomial y)
-        {
-            return x.Addition(y);
-        }
-
-        public static bool operator ==(Polynomial x, Polynomial y)
-        {
-            if (x.GetPolynomialElementsCount() != y.GetPolynomialElementsCount())
-                return false;
-            for (int i = 0; i < x.GetPolynomialElementsCount(); i++)
-            {
-                if (x[i].degree != y[i].degree || x[i].coefficient != y[i].coefficient)
-                    return false;
-            }
-            return true;
-            //return x.ToString() == y.ToString();
-        }
-
-        public static bool operator !=(Polynomial x, Polynomial y) => !(x == y);
-
-        public override string ToString()
-        {
-            StringBuilder sb = new StringBuilder();
-            if (elements.Count == 0)
-                return "Empty polynomial";
-            foreach (PolynomialElement item in elements)
-            {
-                sb.Append(item);
-            }
-            if (sb.Length > 0)
-            {
-                if (sb[0] == '+')
-                    sb.Remove(0, 1);
-            }
-            else
-            {
-                return "0";
-            }
-            return sb.ToString();
-        }
-
-        public override bool Equals(object obj)
-        {
-            Polynomial compare = obj as Polynomial;
-            return this == compare;
-        }
-
-        public override int GetHashCode()
-        {
-            return ToString().GetHashCode();
-        }
-
-        private int GetPolynomialElementsCount()
-        {
-            return elements.Count;
-        }
-
-        private PolynomialElement this[int index]
-        {
-            get { return elements[index]; }
-        }
-
-        private void AddPolynomialElement(PolynomialElement element)
-        {
-            elements.Add(element);
-        }
-
-        private void AddToCollection(double[] coefficients, int[] degrees)
-        {
-            PolynomialElement add;
-            for (int i = 0; i < coefficients.Length; i++)
-            {
-                add.degree = degrees[i];
-                add.coefficient = coefficients[i];
-                elements.Add(add);
-            }
-        }
-
-        private void CheckForRepeatedDegrees()
-        {
-            if (elements.Count < 2)
-                return;
-            for (int i = 0; i < elements.Count; i++)
-            {
-                int j = i;
-                double coefficients = 0;
-                while (j < elements.Count - 1 && elements[i].degree == elements[j + 1].degree)
-                {
-                    coefficients += elements[j++].coefficient;
-                }
-                if (j > 1)
-                {
-                    elements.RemoveRange(i, j - i);
-                    elements[i] = new PolynomialElement(elements[i].coefficient + coefficients, elements[i].degree);//+= coefficients;
-                }
             }
         }
 
