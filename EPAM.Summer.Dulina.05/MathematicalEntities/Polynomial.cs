@@ -7,16 +7,17 @@ using System.Linq;
 using System.Security.AccessControl;
 using System.Text;
 using System.Threading.Tasks;
+using System.Configuration;
 
 namespace MathematicalEntities
 {
-    public sealed class Polynomial
+    public sealed class Polynomial : ICloneable, IEquatable<Polynomial>
     {
-        public int Degree { get; }////////
-        private readonly PolynomialElement[] elements;////////
+        public int Degree { get; }
+        private readonly PolynomialElement[] elements;
         private static readonly double accuracy;
 
-        public Polynomial()////////////////////
+        public Polynomial()
         {
             elements = new PolynomialElement[1];
             Degree = 0;
@@ -24,10 +25,17 @@ namespace MathematicalEntities
 
         static Polynomial()
         {
-            accuracy = 0.000001;
+            if (ConfigurationManager.AppSettings.Count > 0)
+            {
+                accuracy = double.Parse(ConfigurationManager.AppSettings["accuracy"]);
+            }
+            else
+            {
+                accuracy = 0.000001;
+            }
         }
 
-        public Polynomial(double[] coefficients, int[] degrees)////////////////
+        public Polynomial(double[] coefficients, int[] degrees)
         {
             if (coefficients.Length != degrees.Length)
             {
@@ -41,23 +49,35 @@ namespace MathematicalEntities
             Degree = elements[elements.Length - 1].degree;
         }
 
+        public Polynomial(Polynomial polynomial)
+        {
+            elements = new PolynomialElement[polynomial.Count];
+            Array.Copy(polynomial.GetElements(), elements, polynomial.Count);
+            Degree = polynomial.Degree;
+        }
+
+        private Polynomial(PolynomialElement[] storage, int count)
+        {
+            elements = new PolynomialElement[count];
+            Array.Copy(storage, elements, count);
+            Degree = storage[count - 1].degree;
+        }
+
         public Polynomial Addition(Polynomial x)
         {
             if (x == null)
             {
                 throw new ArgumentNullException("x");
             }
-            Polynomial result = new Polynomial();
-            if (x.Count == 0 && 0 == Count)
-            {
-                return result;
-            }
+            PolynomialElement[] result = new PolynomialElement[Count + x.Count];
             int i = 0, j = 0, resultIndex = 0;
             while (i < Count && j < x.Count)
             {
                 if (elements[i].degree == x[j].degree)
                 {
-                    result[resultIndex] = new PolynomialElement(elements[i].coefficient + x[j].coefficient, elements[i].degree);
+                    //result[resultIndex] = new PolynomialElement(elements[i].coefficient + x[j].coefficient, elements[i].degree);
+                    result[resultIndex].coefficient = elements[i].coefficient + x[j].coefficient;
+                    result[resultIndex].degree = elements[i].degree;
                     i++;
                     j++;
                 }
@@ -87,11 +107,11 @@ namespace MathematicalEntities
                 j++;
                 resultIndex++;
             }
-
-            return result;
+            Polynomial add = new Polynomial(result, resultIndex);
+            return add;
         }
 
-        public double CalculateValue(double x)////////////////////
+        public double CalculateValue(double x)
         {
             double result = 0;
             for (int i = 0; i < elements.Length; i++)
@@ -101,20 +121,20 @@ namespace MathematicalEntities
             return result;
         }
 
-        public override int GetHashCode()//////////////////
+        public override int GetHashCode()
         {
             return ToString().GetHashCode();
         }
 
-        private int Count => elements.Length;////////////////
+        private int Count => elements.Length;
 
-        public PolynomialElement this[int index]////////////////
+        public PolynomialElement this[int index]
         {
             get { return elements[index]; }
             private set { elements[index] = value; }
         }
 
-        private void AddToCollection(double[] coefficients, int[] degrees, PolynomialElement[] preInit)////////////////
+        private void AddToCollection(double[] coefficients, int[] degrees, PolynomialElement[] preInit)
         {
             for (int i = 0; i < degrees.Length; i++)
             {
@@ -123,15 +143,7 @@ namespace MathematicalEntities
             }
         }
 
-        public override bool Equals(object obj)//////////////
-        {
-            if (obj == null || GetType() != obj.GetType())
-                return false;
-            Polynomial compare = (Polynomial)obj;
-            return this == compare;
-        }
-
-        public static Polynomial operator +(Polynomial lhs, Polynomial rhs)///////////////
+        public static Polynomial operator +(Polynomial lhs, Polynomial rhs)
         {
             if (lhs == null)
             {
@@ -144,12 +156,26 @@ namespace MathematicalEntities
             return lhs.Addition(rhs);
         }
 
-        public static bool operator !=(Polynomial lhs, Polynomial rhs)///////////////
+        public static bool operator !=(Polynomial lhs, Polynomial rhs)
         {
             return !(lhs == rhs);
         }
 
-        public static bool operator ==(Polynomial lhs, Polynomial rhs)////////////
+        public bool Equals(Polynomial other)
+        {
+            if (other == null) return false;
+            return this == other;
+        }
+
+        public override bool Equals(object obj)
+        {
+            if (obj == null || GetType() != obj.GetType())
+                return false;
+            Polynomial compare = (Polynomial)obj;
+            return this == compare;
+        }
+
+        public static bool operator ==(Polynomial lhs, Polynomial rhs)
         {
             if (ReferenceEquals(lhs, rhs)) return true;
             if (ReferenceEquals(lhs, null) || ReferenceEquals(rhs, null)) return false;
@@ -157,10 +183,22 @@ namespace MathematicalEntities
                 return false;
             for (int i = 0; i < lhs.Count; i++)
             {
-                if (lhs[i].degree != rhs[i].degree || Math.Abs(lhs[i].coefficient - rhs[i].coefficient) < accuracy)
+                if (lhs[i].degree != rhs[i].degree || Math.Abs(lhs[i].coefficient - rhs[i].coefficient) > accuracy)
                     return false;
             }
             return true;
+        }
+
+        public object Clone()
+        {
+            return new Polynomial(this);
+        }
+
+        public PolynomialElement[] GetElements()
+        {
+            PolynomialElement[] elementsR = new PolynomialElement[Count];
+            Array.Copy(elements, elementsR, Count);
+            return elementsR;
         }
 
         public override string ToString()
@@ -184,11 +222,10 @@ namespace MathematicalEntities
             return sb.ToString();
         }
 
-        private void CheckForRepeatedDegrees(ref PolynomialElement[] preInit)///////////////
+        private void CheckForRepeatedDegrees(ref PolynomialElement[] preInit)
         {
             if (preInit.Length < 2)
                 return;
-            PolynomialElement[] updatedElements;
             int resultIndex = 0;
             for (int i = 0; i < preInit.Length; i++)
             {
@@ -216,7 +253,7 @@ namespace MathematicalEntities
             }
             if (resultIndex < preInit.Length - 1)
             {
-                updatedElements = new PolynomialElement[resultIndex + 1];
+                PolynomialElement[] updatedElements = new PolynomialElement[resultIndex + 1];
                 Array.Copy(preInit, updatedElements, resultIndex + 1);
                 preInit = updatedElements;
             }
